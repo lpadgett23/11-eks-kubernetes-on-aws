@@ -1,41 +1,82 @@
-def gv
+#!/usr/bin/env groovy
 
-pipeline {   
+// library identifier: 'jenkins-shared-library@main', retriever: modernSCM(
+//     [$class: 'GitSCMSource',
+//     remote: 'https://github.com/lpadgett23/jenkins-shared-library.git',
+//     credentialsID: 'gitlab-credentials'
+//     ]
+// )
+
+pipeline {
     agent any
     tools {
         maven 'Maven'
     }
     stages {
-        stage("init") {
+        stage('increment version') {
             steps {
                 script {
-                    gv = load "script.groovy"
+                    echo 'incrementing version of app...'
+                    sh 'mvn build-helper:parse-version versions:set \
+                        -DnewVersion=\\\${parsedVersion.majorVersion}.\\\${parsedVersion.minorVersion}.\\\${parsedVersion.nextIncrementalVersion} \
+                        versions:commit'
+                    def matcher = readFile('pom.xml') =~ '<version>(.+)</version>'
+                    def version = matcher[0][1]
+                    env.IMAGE_NAME = "aws-$version-$BUILD_NUMBER"
                 }
             }
         }
-        stage("build jar") {
+        stage('build app'){
             steps {
                 script {
-                    gv.buildJar()
-
+                    echo 'building th application ... '
+                    sh 'mvn clean package'
                 }
             }
         }
-
         stage("build image") {
             steps {
                 script {
-                    gv.buildImage()
+                    echo "building the docker image..."
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-repo', passwordVariable: 'PASS', usernameVariable: 'USER')]){
+                        sh "docker build -t lepcloud23/demo-app:${IMAGE_NAME} ."
+                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+                        sh "docker push lepcloud23/demo-app:${IMAGE_NAME}"
+                    }
                 }
             }
         }
 
-        stage("deploy") {
+        stage('deploy to k8s') {
+            environment {          
+                AWS_ACCESS_KEY_ID = credentials('jenkins_aws_access_key_id') 
+                AWS_SECRET_ACCESS_KEY = credentials('jenkins_aws_secret_access_key')
+                APP_NAME = 'java-maven-app'
+            }
             steps {
                 script {
-                    gv.deployApp()
+                    echo 'deploying docker image to k8s...'
+                    sh 'envsubst < kubernetes/deployment.yaml | kubectl apply -f -'
+                    sh 'envsubst < kubernetes/service.yaml | kubectl apply -f -'
                 }
             }
-        }               
+        } 
+
+        stage("commit version update") {
+            steps {
+                script {
+                    //withCredentials([string(credentialsId: 'github-jenkins-token', variable: 'TOKEN'), 
+                    withCredentials([usernamePassword(credentialsId: 'github-jenkins-token', passwordVariable: 'PASS', usernameVariable: 'USER')]){
+                        sh 'git status'
+                        sh 'git branch'
+                        sh 'git config --list'
+                        sh "git remote set-url origin https://${USER}:${TOKEN}@github.com/lpadgett23/11-eks-kubernetes-on-aws.git"
+                        sh 'git add .'
+                        sh 'git commit -m "ci: version bump"'
+                        sh "git push origin HEAD:jenkins-jobs"  // this used to have /folder-name at end... 
+                    }   
+                }
+            }               
+        }             
     }
 } 
