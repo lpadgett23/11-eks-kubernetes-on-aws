@@ -18,14 +18,14 @@ pipeline {
             }
         }
         stage('deploy to k8s') {
-            environment {
-                AWS_ACCESS_KEY_ID = credentials('jenkins_aws_access_key_id')
+            environment {           // this whole env block isn't needed for linode LKE or bare metal for ex, bec we had a credential that saved kubeconfig as secret file in jenkins ui
+                AWS_ACCESS_KEY_ID = credentials('jenkins_aws_access_key_id') 
                 AWS_SECRET_ACCESS_KEY = credentials('jenkins_aws_secret_access_key')
             }
             steps {
                 script {
                    echo 'deploying image to k8s...'
-                   withKubeConfig(clusterName: 'demo-cluster-2', credentialsId: 'K8S', serverUrl: 'https://5A7958397024D2B4E979915A7FEBDC6A.gr7.us-east-1.eks.amazonaws.com') {
+                   //withKubeConfig(credentialsId: 'lke-credentials', serverUrl: '<my linode LKE endpoint>') {
                         sh 'kubectl create deployment nginx-deployment --image=nginx'
                     }
                 }
