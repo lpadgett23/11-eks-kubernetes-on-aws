@@ -67,6 +67,8 @@ pipeline {
                 script {
                     //withCredentials([string(credentialsId: 'github-jenkins-token', variable: 'TOKEN'), 
                     withCredentials([usernamePassword(credentialsId: 'github-jenkins-token', passwordVariable: 'PASS', usernameVariable: 'USER')]){
+                        sh 'git config --global user.email "jenkins@example.com"'
+                        sh 'git config --global user.name "Jenkins"'
                         sh 'git status'
                         sh 'git branch'
                         sh 'git config --list'
