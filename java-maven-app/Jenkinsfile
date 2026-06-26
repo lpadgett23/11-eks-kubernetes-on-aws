@@ -1,3 +1,10 @@
+#!/user/bin/env groovy
+
+library identifier: 'jenkins-shared-library@main', retriever: modernSCM(
+    [$class: 'GitSCMSource',
+    remote: 'https://github.com/lpadgett23/jenkins-shared-library.git',
+    credentialsId: 'github-credentials']
+)
 def gv
 
 pipeline {   
@@ -21,7 +28,7 @@ pipeline {
             }
             steps {
                 script {
-                    gv.buildJar()
+                    buildJar()
 
                 }
             }
@@ -30,7 +37,7 @@ pipeline {
         stage("build image") {
             steps {
                 script {
-                    gv.buildImage()
+                    buildImage()
                 }
             }
         }
